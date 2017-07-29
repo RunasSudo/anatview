@@ -247,20 +247,26 @@ class MainUI(QWidget):
 			glEnable(num)
 		@self.render_ui.event
 		def on_draw():
+			glClearDepth(0.0) # idk why - see below
 			self.render_ui.clear()
 			glLoadIdentity()
 			
+			glEnable(GL_LIGHTING)
+			glShadeModel(GL_SMOOTH)
 			set_light(GL_LIGHT0, 3.0, 3.0, 3.0)
 			set_light(GL_LIGHT1, 3.0, 3.0, -3.0)
 			set_light(GL_LIGHT2, -3.0, 3.0, -3.0)
 			set_light(GL_LIGHT3, -3.0, 3.0, 3.0)
 			set_light(GL_LIGHT4, 0.0, -3.0, 0.0)
 			
-			glTranslated(0, 0, -3)
+			glEnable(GL_DEPTH_TEST)
+			glDepthFunc(GL_GREATER) # OpenGL is weird...
+			# Omitting glClearDepth(0.0) and using glDepthFunc(GL_LEQUAL) as usual, bits frequently draw back to front, but only from certain angles...
+			
+			glTranslated(0, 0, -3.0)
 			glRotatef(rotation, 0, 1, 0)
 			glScalef(scale, scale, scale)
 			glTranslated(-bounds_mid[0], -bounds_mid[2], -bounds_mid[1])
-			glEnable(GL_LIGHTING)
 			
 			mesh.draw()
 		@self.render_ui.event
