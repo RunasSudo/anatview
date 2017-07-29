@@ -230,6 +230,8 @@ class MainUI(QWidget):
 		self.render_ui = pyglet.window.Window()
 		bounds_mid = [(bounds_min[x] + bounds_max[x]) / 2 for x in range(3)] # not swapped!
 		rotation = 0
+		scale = 0.01
+		
 		@self.render_ui.event
 		def on_resize(width, height):
 			glMatrixMode(GL_PROJECTION)
@@ -256,16 +258,19 @@ class MainUI(QWidget):
 			
 			glTranslated(0, 0, -3)
 			glRotatef(rotation, 0, 1, 0)
-			glScalef(0.01, 0.01, 0.01)
+			glScalef(scale, scale, scale)
 			glTranslated(-bounds_mid[0], -bounds_mid[2], -bounds_mid[1])
 			glEnable(GL_LIGHTING)
 			
 			mesh.draw()
-		def update(dt):
+		@self.render_ui.event
+		def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
 			nonlocal rotation
-			rotation += 90*dt
-			if rotation > 720: rotation = 0
-		pyglet.clock.schedule(update)
+			rotation -= dx
+		@self.render_ui.event
+		def on_mouse_scroll(x, y, scroll_x, scroll_y):
+			nonlocal scale
+			scale += scroll_y * 0.001
 		pyglet.app.run()
 
 #class RenderUI(QOpenGLWidget):
