@@ -230,8 +230,10 @@ class MainUI(QWidget):
 			print('Parsing OBJ {}'.format(f.name))
 			mesh = pywavefront.Wavefront(f.name)
 		print('Rendering OBJ')
-		self.render_ui = pyglet.window.Window()
+		self.render_ui = pyglet.window.Window(width=1600, height=900)
+		
 		bounds_mid = [(bounds_min[x] + bounds_max[x]) / 2 for x in range(3)] # not swapped!
+		
 		rotation = 0
 		scale = 0.01
 		
@@ -239,7 +241,7 @@ class MainUI(QWidget):
 		def on_resize(width, height):
 			glMatrixMode(GL_PROJECTION)
 			glLoadIdentity()
-			gluPerspective(60., float(width)/height, 1., 100.)
+			gluPerspective(45., float(width)/height, 1., 100.)
 			glMatrixMode(GL_MODELVIEW)
 			return True
 		def set_light(num, x, y, z):
