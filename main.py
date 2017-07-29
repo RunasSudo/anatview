@@ -180,7 +180,7 @@ class MainUI(QWidget):
 		
 		# Build OBJ
 		print('Building OBJ')
-		with tempfile.NamedTemporaryFile('w', suffix='.obj', prefix='anatomy_', delete=False) as f:
+		with tempfile.NamedTemporaryFile('w', suffix='.obj', prefix='anatomy_', delete=True) as f:
 			v_offset = 0
 			vn_offset = 0
 			bounds_min = [False, False, False]
@@ -283,51 +283,6 @@ class MainUI(QWidget):
 			nonlocal scale
 			scale += scroll_y * 0.001
 		pyglet.app.run()
-
-#class RenderUI(QOpenGLWidget):
-class RenderUI:
-	def __init__(self, files):
-		super().__init__()
-		self.files = files
-	
-	def paintGL(self):
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-		glLoadIdentity()
-	
-	
-		#glTranslatef(-2.5, 0.5, -6.0)
-		#glColor3f( 1.0, 1.5, 0.0 );
-		#glPolygonMode(GL_FRONT, GL_FILL);
-		glScale(0.001, 0.001, 0.001)
-	
-		#glBegin(GL_TRIANGLES)
-		#glVertex3f(2.0,-1.2,0.0)
-		#glVertex3f(2.6,0.0,0.0)
-		#glVertex3f(2.9,-1.2,0.0)
-		#glEnd()
-		
-		for obj in self.objs:
-			glCallList(obj.gl_list)
-	
-	
-		glFlush()
-	
-	def initializeGL(self):
-		glClearDepth(1.0)
-		glDepthFunc(GL_LESS)
-		glEnable(GL_DEPTH_TEST)
-		glShadeModel(GL_SMOOTH)
-	
-		glMatrixMode(GL_PROJECTION)
-		glLoadIdentity()
-		gluPerspective(45.0,1.33,0.1, 100.0)
-		glMatrixMode(GL_MODELVIEW)
-		
-		# Load files
-		self.objs = []
-		for file_name in self.files:
-			print('Loading {}'.format(file_name))
-			self.objs.append(objloader.OBJ(file_name))
 
 app = QApplication(sys.argv)
 
