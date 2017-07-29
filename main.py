@@ -77,6 +77,9 @@ class MainUI(QWidget):
 			check_item.setCheckable(True)
 			check_item.setCheckState(Qt.Unchecked)
 			
+			if child.code in sys.argv[1:]:
+				check_item.setCheckState(Qt.Checked)
+			
 			child_item = [QStandardItem(child.code), QStandardItem(child.name), check_item]
 			item.appendRow(child_item)
 			child.item = child_item
