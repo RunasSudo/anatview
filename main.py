@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+WIDTH = 1200
+HEIGHT = 675
+FOV = 30
+
 import ctypes
 import os
 import os.path
@@ -7,7 +11,7 @@ import re
 import sys
 import tempfile
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import QApplication, QGridLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTreeView, QWidget
 
@@ -34,9 +38,11 @@ class MainUI(QWidget):
 	def __init__(self):
 		super().__init__()
 		
+		self.render_ui = None
+		
 		# Init UI
 		
-		self.setGeometry(300, 300, 1600, 900)
+		self.setGeometry(300, 300, WIDTH, HEIGHT)
 		self.setWindowTitle('Anatomy')
 		
 		self.grid = QGridLayout()
@@ -228,67 +234,91 @@ class MainUI(QWidget):
 					vn_offset += vn_num
 			
 			print('Parsing OBJ {}'.format(f.name))
-			mesh = pywavefront.Wavefront(f.name)
+			self.mesh = pywavefront.Wavefront(f.name)
+		
 		print('Rendering OBJ')
-		self.render_ui = pyglet.window.Window(width=1600, height=900)
 		
-		bounds_mid = [(bounds_min[x] + bounds_max[x]) / 2 for x in range(3)] # not swapped!
+		self.bounds_mid = [(bounds_min[x] + bounds_max[x]) / 2 for x in range(3)] # not swapped!
 		
-		rotation = 0
-		scale = 0.01
+		if self.render_ui is None:
+			self.render_ui = pyglet.window.Window(width=WIDTH, height=HEIGHT)
 		
-		@self.render_ui.event
-		def on_resize(width, height):
-			glMatrixMode(GL_PROJECTION)
-			glLoadIdentity()
-			gluPerspective(45., float(width)/height, 1., 100.)
-			glMatrixMode(GL_MODELVIEW)
-			return True
-		def set_light(num, x, y, z):
-			glLightfv(num, GL_POSITION, lightfv(x, y, z, 1.0))
-			glLightfv(num, GL_DIFFUSE, lightfv(1.0, 1.0, 1.0, 1.0))
-			glLightf(num, GL_CONSTANT_ATTENUATION, 0.0)
-			glLightf(num, GL_QUADRATIC_ATTENUATION, 10.0)
-			glEnable(num)
-		@self.render_ui.event
-		def on_draw():
-			glClearDepth(0.0) # idk why - see below
-			self.render_ui.clear()
-			glLoadIdentity()
+			rotation_x = 0
+			rotation_y = 0
+			translation_y = 0
+			scale = 0.01
 			
-			glEnable(GL_LIGHTING)
-			glShadeModel(GL_SMOOTH)
-			set_light(GL_LIGHT0, 3.0, 3.0, 3.0)
-			set_light(GL_LIGHT1, 3.0, 3.0, -3.0)
-			set_light(GL_LIGHT2, -3.0, 3.0, -3.0)
-			set_light(GL_LIGHT3, -3.0, 3.0, 3.0)
-			set_light(GL_LIGHT4, 0.0, -3.0, 0.0)
+			@self.render_ui.event
+			def on_resize(width, height):
+				glMatrixMode(GL_PROJECTION)
+				glLoadIdentity()
+				gluPerspective(FOV, width/height, 1., 100.)
+				glMatrixMode(GL_MODELVIEW)
+				return True
+			def set_light(num, x, y, z):
+				glLightfv(num, GL_POSITION, lightfv(x, y, z, 1.0))
+				glLightfv(num, GL_DIFFUSE, lightfv(1.0, 1.0, 1.0, 1.0))
+				glLightf(num, GL_CONSTANT_ATTENUATION, 0.0)
+				glLightf(num, GL_QUADRATIC_ATTENUATION, 10.0)
+				glEnable(num)
+			@self.render_ui.event
+			def on_draw():
+				glClearDepth(0.0) # idk why - see below
+				self.render_ui.clear()
+				glLoadIdentity()
+				
+				glEnable(GL_LIGHTING)
+				glShadeModel(GL_SMOOTH)
+				set_light(GL_LIGHT0, 3.0, 3.0, 3.0)
+				set_light(GL_LIGHT1, 3.0, 3.0, -3.0)
+				set_light(GL_LIGHT2, -3.0, 3.0, -3.0)
+				set_light(GL_LIGHT3, -3.0, 3.0, 3.0)
+				set_light(GL_LIGHT4, 0.0, -3.0, 0.0)
+				
+				glEnable(GL_DEPTH_TEST)
+				glDepthFunc(GL_GREATER) # OpenGL is weird...
+				# Omitting glClearDepth(0.0) and using glDepthFunc(GL_LEQUAL) as usual, bits frequently draw back to front, but only from certain angles...
+				
+				glTranslated(0, translation_y, -3.0)
+				glRotatef(rotation_x, 1, 0, 0)
+				glRotatef(rotation_y, 0, 1, 0)
+				glScalef(scale, scale, scale)
+				glTranslated(-self.bounds_mid[0], -self.bounds_mid[2], -self.bounds_mid[1])
+				
+				self.mesh.draw()
+			@self.render_ui.event
+			def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
+				nonlocal rotation_x
+				nonlocal rotation_y
+				rotation_y -= dx
+				rotation_x += dy
+			@self.render_ui.event
+			def on_mouse_scroll(x, y, scroll_x, scroll_y):
+				nonlocal scale
+				scale += scroll_y * 0.001
+			@self.render_ui.event
+			def on_key_press(symbol, modifiers):
+				nonlocal translation_y
+				if symbol == pyglet.window.key.W:
+					translation_y -= 0.3
+				elif symbol == pyglet.window.key.S:
+					translation_y += 0.3
 			
-			glEnable(GL_DEPTH_TEST)
-			glDepthFunc(GL_GREATER) # OpenGL is weird...
-			# Omitting glClearDepth(0.0) and using glDepthFunc(GL_LEQUAL) as usual, bits frequently draw back to front, but only from certain angles...
-			
-			glTranslated(0, 0, -3.0)
-			glRotatef(rotation, 0, 1, 0)
-			glScalef(scale, scale, scale)
-			glTranslated(-bounds_mid[0], -bounds_mid[2], -bounds_mid[1])
-			
-			mesh.draw()
-		@self.render_ui.event
-		def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
-			nonlocal rotation
-			rotation -= dx
-		@self.render_ui.event
-		def on_mouse_scroll(x, y, scroll_x, scroll_y):
-			nonlocal scale
-			scale += scroll_y * 0.001
-		pyglet.app.run()
+			timer = QTimer(self)
+			def on_timer_timeout():
+				# Supplant event loop
+				pyglet.clock.tick()
+				for window in pyglet.app.windows:
+					window.switch_to()
+					window.dispatch_events()
+					window.dispatch_event('on_draw')
+					window.flip()
+			timer.timeout.connect(on_timer_timeout)
+			timer.start(0)
 
 app = QApplication(sys.argv)
 
 w = MainUI()
 w.show()
-#r = RenderUI()
-#r.show()
 
 sys.exit(app.exec_())
