@@ -72,9 +72,9 @@ class MainUI(QWidget):
 					self.component_items[bits[2]] = ComponentItem(bits[2], bits[3])
 				self.component_items[bits[0]].children.append(self.component_items[bits[2]])
 				self.component_items[bits[2]].parent = self.component_items[bits[0]]
-		with open('/home/runassudo/Documents/Anatomy/data/isa_inclusion_relation_list.txt', 'r') as f:
+		with open('data/isa_inclusion_relation_list.txt', 'r') as f:
 			do_file(f)
-		with open('/home/runassudo/Documents/Anatomy/data/partof_inclusion_relation_list.txt', 'r') as f:
+		with open('data/partof_inclusion_relation_list.txt', 'r') as f:
 			do_file(f)
 		
 		# Build QT tree
@@ -169,18 +169,18 @@ class MainUI(QWidget):
 				bits = line.rstrip('\n').split('\t')
 				if bits[0] in components:
 					parts.add(bits[2])
-		with open('/home/runassudo/Documents/Anatomy/data/isa_element_parts.txt', 'r') as f:
+		with open('data/isa_element_parts.txt', 'r') as f:
 			do_file(f)
-		with open('/home/runassudo/Documents/Anatomy/data/partof_element_parts.txt', 'r') as f:
+		with open('data/partof_element_parts.txt', 'r') as f:
 			do_file(f)
 		
 		# Resolve filenames
 		files = []
 		for part in parts:
-			if os.path.exists('/home/runassudo/Documents/Anatomy/data/partof_BP3D_4.0_obj_99/' + part + '.obj'):
-				files.append((part, '/home/runassudo/Documents/Anatomy/data/partof_BP3D_4.0_obj_99/' + part + '.obj'))
-			elif os.path.exists('/home/runassudo/Documents/Anatomy/data/isa_BP3D_4.0_obj_99/' + part + '.obj'):
-				files.append((part, '/home/runassudo/Documents/Anatomy/data/isa_BP3D_4.0_obj_99/' + part + '.obj'))
+			if os.path.exists('data/partof_BP3D_4.0_obj_99/' + part + '.obj'):
+				files.append((part, 'data/partof_BP3D_4.0_obj_99/' + part + '.obj'))
+			elif os.path.exists('data/isa_BP3D_4.0_obj_99/' + part + '.obj'):
+				files.append((part, 'data/isa_BP3D_4.0_obj_99/' + part + '.obj'))
 			else:
 				print('Warning: No file for part {}'.format(part))
 		
