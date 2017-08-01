@@ -19,11 +19,6 @@ import pyglet
 from pyglet.gl import *
 import pywavefront
 
-# Patch
-import pywavefront.material
-_Material_init = pywavefront.material.Material.__init__
-pywavefront.material.Material.__init__ = lambda self, name=None: _Material_init(self, name)
-
 lightfv = ctypes.c_float * 4
 
 class ComponentItem:
@@ -185,60 +180,20 @@ class MainUI(QWidget):
 				print('Warning: No file for part {}'.format(part))
 		
 		# Build OBJ
-		print('Building OBJ')
-		with tempfile.NamedTemporaryFile('w', suffix='.obj', prefix='anatomy_', delete=True) as f:
-			v_offset = 0
-			vn_offset = 0
-			bounds_min = [False, False, False]
-			bounds_max = [False, False, False]
-			for part, file_name in files:
-				with open(file_name, 'r') as f2:
-					v_num = 0
-					vn_num = 0
-					for line in f2:
-						line = line.rstrip()
-						if line.startswith('v '):
-							v_num += 1
-							bits = line.split(' ')
-							print('v ' + bits[1] + ' ' + bits[3] + ' ' + bits[2], file=f) # swap y/z
-						elif line.startswith('vn '):
-							vn_num += 1
-							bits = line.split(' ')
-							print('vn ' + bits[1] + ' ' + bits[3] + ' ' + bits[2], file=f) # swap y/z
-						elif line.startswith('f '):
-							bits = line.split(' ')
-							print('f ', end='', file=f)
-							for bit in bits[1:]:
-								bits2 = bit.split('/')
-								print(int(bits2[0]) + v_offset, end='', file=f)
-								if len(bits2) >= 2:
-									print('/' + bits2[1], end='', file=f)
-								if len(bits2) >= 3:
-									print('/' + str(int(bits2[2]) + vn_offset), end='', file=f)
-								print(' ', end='', file=f)
-							print(file=f)
-						elif line.startswith('g '):
-							print('o ' + part + '-' + line[2:], file=f)
-						elif line.startswith('usemtl '):
-							pass
-						elif line.startswith('mtllib '):
-							pass
-						elif line.startswith('# Bounds(mm):'):
-							match = re.match(r'# Bounds\(mm\): \(([0-9.-]*),([0-9.-]*),([0-9.-]*)\)-\(([0-9.-]*),([0-9.-]*),([0-9.-]*)\)', line)
-							bounds_min = [float(match.group(x+1)) if bounds_min[x] is False else min(bounds_min[x], float(match.group(x+1))) for x in range(3)]
-							bounds_max = [float(match.group(x+4)) if bounds_max[x] is False else max(bounds_max[x], float(match.group(x+4))) for x in range(3)]
-							print(line, file=f)
-						else:
-							print(line, file=f)
-					v_offset += v_num
-					vn_offset += vn_num
-			
-			print('Parsing OBJ {}'.format(f.name))
-			self.mesh = pywavefront.Wavefront(f.name)
+		print('Processing OBJ')
+		bounds_min = [False, False, False]
+		bounds_max = [False, False, False]
+		for part, file_name in files:
+			if part not in self.meshes:
+				print('Parsing OBJ {}'.format(file_name))
+				mesh = pywavefront.Wavefront(file_name, parse_materials=False, swap_yz=True)
+				bounds_min = [mesh.bounds_min[i] if bounds_min[i] is False else min(bounds_min[i], mesh.bounds_min[i]) for i in range(3)]
+				bounds_max = [mesh.bounds_max[i] if bounds_max[i] is False else max(bounds_max[i], mesh.bounds_max[i]) for i in range(3)]
+				self.meshes[part] = mesh
 		
 		print('Rendering OBJ')
 		
-		self.bounds_mid = [(bounds_min[x] + bounds_max[x]) / 2 for x in range(3)] # not swapped!
+		self.bounds_mid = [(bounds_min[x] + bounds_max[x]) / 2 for x in range(3)]
 		
 		if self.render_ui is None:
 			self.render_ui = pyglet.window.Window(width=WIDTH, height=HEIGHT)
@@ -263,7 +218,6 @@ class MainUI(QWidget):
 				glEnable(num)
 			@self.render_ui.event
 			def on_draw():
-				glClearDepth(0.0) # idk why - see below
 				self.render_ui.clear()
 				glLoadIdentity()
 				
@@ -276,22 +230,21 @@ class MainUI(QWidget):
 				set_light(GL_LIGHT4, 0.0, -3.0, 0.0)
 				
 				glEnable(GL_DEPTH_TEST)
-				glDepthFunc(GL_GREATER) # OpenGL is weird...
-				# Omitting glClearDepth(0.0) and using glDepthFunc(GL_LEQUAL) as usual, bits frequently draw back to front, but only from certain angles...
+				glDepthFunc(GL_LEQUAL)
 				
 				glTranslated(0, translation_y, -3.0)
 				glRotatef(rotation_x, 1, 0, 0)
 				glRotatef(rotation_y, 0, 1, 0)
 				glScalef(scale, scale, scale)
-				glTranslated(-self.bounds_mid[0], -self.bounds_mid[2], -self.bounds_mid[1])
+				glTranslated(-self.bounds_mid[0], -self.bounds_mid[1], -self.bounds_mid[2])
 				
 				self.mesh.draw()
 			@self.render_ui.event
 			def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
 				nonlocal rotation_x
 				nonlocal rotation_y
-				rotation_y -= dx
-				rotation_x += dy
+				rotation_y += dx
+				rotation_x -= dy
 			@self.render_ui.event
 			def on_mouse_scroll(x, y, scroll_x, scroll_y):
 				nonlocal scale
