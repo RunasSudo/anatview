@@ -220,7 +220,7 @@ class MainUI(QWidget):
 				glLightfv(num, GL_POSITION, lightfv(x, y, z, 1.0))
 				glLightfv(num, GL_DIFFUSE, lightfv(1.0, 1.0, 1.0, 1.0))
 				glLightf(num, GL_CONSTANT_ATTENUATION, 0.0)
-				glLightf(num, GL_QUADRATIC_ATTENUATION, 10.0)
+				glLightf(num, GL_QUADRATIC_ATTENUATION, 0.75)
 				glEnable(num)
 			@self.render_ui.event
 			def on_draw():
@@ -229,11 +229,12 @@ class MainUI(QWidget):
 				
 				glEnable(GL_LIGHTING)
 				glShadeModel(GL_SMOOTH)
-				set_light(GL_LIGHT0, 3.0, 3.0, 3.0)
-				set_light(GL_LIGHT1, 3.0, 3.0, -3.0)
-				set_light(GL_LIGHT2, -3.0, 3.0, -3.0)
-				set_light(GL_LIGHT3, -3.0, 3.0, 3.0)
-				set_light(GL_LIGHT4, 0.0, -3.0, 0.0)
+				set_light(GL_LIGHT0, 1.0, 1.0, 1.0)
+				set_light(GL_LIGHT1, 1.0, 1.0, -1.0)
+				set_light(GL_LIGHT2, -1.0, 1.0, -1.0)
+				set_light(GL_LIGHT3, -1.0, 1.0, 1.0)
+				#set_light(GL_LIGHT4, 0.0, -3.0, 0.0)
+				glEnable(GL_NORMALIZE) # required for correct lighting when we scale
 				
 				glEnable(GL_DEPTH_TEST)
 				glDepthFunc(GL_LEQUAL)
