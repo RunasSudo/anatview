@@ -34,6 +34,7 @@ class MainUI(QWidget):
 		super().__init__()
 		
 		self.render_ui = None
+		self.meshes = {} # id -> Wavefront
 		
 		# Init UI
 		
@@ -153,17 +154,19 @@ class MainUI(QWidget):
 		
 		for k, v in self.component_items.items():
 			if v.item[2].checkState() == Qt.Checked:
+				print(v.code, end=' ')
 				components.add(v.code)
 				add_children(v)
+		print()
 		
 		# Resolve parts
-		parts = set()
+		self.parts = set()
 		def do_file(f):
 			next(f) # skip header
 			for line in f:
 				bits = line.rstrip('\n').split('\t')
 				if bits[0] in components:
-					parts.add(bits[2])
+					self.parts.add((bits[0], bits[2])) # TODO: stop passing these things around like crazy
 		with open('data/isa_element_parts.txt', 'r') as f:
 			do_file(f)
 		with open('data/partof_element_parts.txt', 'r') as f:
@@ -171,11 +174,11 @@ class MainUI(QWidget):
 		
 		# Resolve filenames
 		files = []
-		for part in parts:
+		for component, part in self.parts:
 			if os.path.exists('data/partof_BP3D_4.0_obj_99/' + part + '.obj'):
-				files.append((part, 'data/partof_BP3D_4.0_obj_99/' + part + '.obj'))
+				files.append((component, part, 'data/partof_BP3D_4.0_obj_99/' + part + '.obj'))
 			elif os.path.exists('data/isa_BP3D_4.0_obj_99/' + part + '.obj'):
-				files.append((part, 'data/isa_BP3D_4.0_obj_99/' + part + '.obj'))
+				files.append((component, part, 'data/isa_BP3D_4.0_obj_99/' + part + '.obj'))
 			else:
 				print('Warning: No file for part {}'.format(part))
 		
@@ -183,13 +186,16 @@ class MainUI(QWidget):
 		print('Processing OBJ')
 		bounds_min = [False, False, False]
 		bounds_max = [False, False, False]
-		for part, file_name in files:
+		for component, part, file_name in files:
 			if part not in self.meshes:
 				print('Parsing OBJ {}'.format(file_name))
 				mesh = pywavefront.Wavefront(file_name, parse_materials=False, swap_yz=True)
-				bounds_min = [mesh.bounds_min[i] if bounds_min[i] is False else min(bounds_min[i], mesh.bounds_min[i]) for i in range(3)]
-				bounds_max = [mesh.bounds_max[i] if bounds_max[i] is False else max(bounds_max[i], mesh.bounds_max[i]) for i in range(3)]
 				self.meshes[part] = mesh
+			else:
+				print('Cached OBJ {}'.format(file_name))
+				mesh = self.meshes[part]
+			bounds_min = [mesh.bounds_min[i] if bounds_min[i] is False else min(bounds_min[i], mesh.bounds_min[i]) for i in range(3)]
+			bounds_max = [mesh.bounds_max[i] if bounds_max[i] is False else max(bounds_max[i], mesh.bounds_max[i]) for i in range(3)]
 		
 		print('Rendering OBJ')
 		
@@ -238,7 +244,8 @@ class MainUI(QWidget):
 				glScalef(scale, scale, scale)
 				glTranslated(-self.bounds_mid[0], -self.bounds_mid[1], -self.bounds_mid[2])
 				
-				self.mesh.draw()
+				for _, part in self.parts:
+					self.meshes[part].draw()
 			@self.render_ui.event
 			def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
 				nonlocal rotation_x
