@@ -13,7 +13,7 @@ import tempfile
 
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
-from PyQt5.QtWidgets import QApplication, QGridLayout, QHeaderView, QLabel, QLineEdit, QPushButton, QTreeView, QWidget
+from PyQt5.QtWidgets import QApplication, QGridLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QTreeView, QWidget
 
 import pyglet
 from pyglet.gl import *
@@ -22,10 +22,10 @@ import pywavefront
 lightfv = ctypes.c_float * 4
 
 class ComponentItem:
-	def __init__(self, code, name, parent=None, children=None, item=None):
+	def __init__(self, code, name, parents=None, children=None, item=None):
 		self.code = code
 		self.name = name
-		self.parent = parent
+		self.parents = [] if parents is None else parents
 		self.children = [] if children is None else children
 		self.item = item
 
@@ -67,7 +67,7 @@ class MainUI(QWidget):
 				if bits[2] not in self.component_items:
 					self.component_items[bits[2]] = ComponentItem(bits[2], bits[3])
 				self.component_items[bits[0]].children.append(self.component_items[bits[2]])
-				self.component_items[bits[2]].parent = self.component_items[bits[0]]
+				self.component_items[bits[2]].parents.append(self.component_items[bits[0]])
 		with open('data/isa_inclusion_relation_list.txt', 'r') as f:
 			do_file(f)
 		with open('data/partof_inclusion_relation_list.txt', 'r') as f:
@@ -89,7 +89,7 @@ class MainUI(QWidget):
 				walk_tree(child_item[0], subchild)
 		
 		for k, v in self.component_items.items():
-			if v.parent is None:
+			if len(v.parents) == 0:
 				walk_tree(self.tree, v)
 		
 		self.tree_view = QTreeView()
@@ -108,41 +108,49 @@ class MainUI(QWidget):
 		self.search_box.setFocus(True)
 	
 	def search_box_return(self):
+		def do_search(not_before):
+			after_before = not_before is None # Flag representing if we are past the current selection
+			def walk_tree(item):
+				nonlocal after_before # ily python 3
+				
+				# Check for match
+				if after_before and self.search_box.text() in item.name:
+					return item
+				
+				# Are we passing the current selection?
+				if item == not_before:
+					after_before = True
+				
+				# Descend into children
+				for child in item.children:
+					val = walk_tree(child)
+					if val is not None:
+						return val
+				return None
+			
+			result = None
+			for k, v in self.component_items.items():
+				if len(v.parents) == 0:
+					result = walk_tree(v)
+					if result is not None:
+						break
+			
+			if result is not None:
+				self.tree_view.setCurrentIndex(result.item[0].index())
+				self.tree_view.scrollTo(result.item[0].index())
+			else:
+				# no result, try again for another pass
+				if not_before is not None:
+					do_search(None)
+				else:
+					msgBox = QMessageBox()
+					msgBox.setText("No further search results.");
+					msgBox.exec();
+		
 		if self.tree_view.selectionModel().hasSelection():
-			not_before = self.component_items[self.tree_view.currentIndex().sibling(self.tree_view.currentIndex().row(), 0).data()]
-			#not_before = self.component_items[self.tree_model.item(self.tree_view.currentIndex().row(), 0).text()]
+			do_search(self.component_items[self.tree_view.currentIndex().sibling(self.tree_view.currentIndex().row(), 0).data()])
 		else:
-			not_before = None
-		
-		after_before = not_before is None # Flag representing if we are past the current selection
-		def walk_tree(item):
-			nonlocal after_before # ily python 3
-			
-			# Check for match
-			if after_before and self.search_box.text() in item.name:
-				return item
-			
-			# Are we passing the current selection?
-			if item == not_before:
-				after_before = True
-			
-			# Descend into children
-			for child in item.children:
-				val = walk_tree(child)
-				if val is not None:
-					return val
-			return None
-		
-		result = None
-		for k, v in self.component_items.items():
-			if v.parent is None:
-				result = walk_tree(v)
-				if result is not None:
-					break
-		
-		if result is not None:
-			self.tree_view.setCurrentIndex(result.item[0].index())
-			self.tree_view.scrollTo(result.item[0].index())
+			do_search(None)
 	
 	def render_button_click(self):
 		# Collate components
@@ -183,6 +191,14 @@ class MainUI(QWidget):
 				print('Warning: No file for part {}'.format(part))
 		
 		# Build OBJ
+		def is_child(part, parent):
+			if part == parent:
+				return True
+			for part_parent in part.parents:
+				if is_child(part_parent, parent):
+					return True
+			return False
+		
 		print('Processing OBJ')
 		bounds_min = [False, False, False]
 		bounds_max = [False, False, False]
@@ -190,6 +206,12 @@ class MainUI(QWidget):
 			if part not in self.meshes:
 				print('Parsing OBJ {}'.format(file_name))
 				mesh = pywavefront.Wavefront(file_name, parse_materials=False, swap_yz=True)
+				for mesh_ in mesh.mesh_list:
+					for material in mesh_.materials:
+						if is_child(self.component_items[component], self.component_items['FMA5018']): # bone organ
+							material.set_diffuse([227/255, 218/255, 201/255, 1])
+						elif is_child(self.component_items[component], self.component_items['FMA5022']): # muscle organ
+							material.set_diffuse([169/255, 17/255, 1/255, 1])
 				self.meshes[part] = mesh
 			else:
 				print('Cached OBJ {}'.format(file_name))
