@@ -1,15 +1,9 @@
-#!/usr/bin/env python3
-
 WIDTH = 1200
 HEIGHT = 675
 FOV = 30
 
-import ctypes
-import os
-import os.path
-import re
-import sys
-import tempfile
+from . import model
+from . import renderer
 
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
@@ -19,22 +13,16 @@ import pyglet
 from pyglet.gl import *
 import pywavefront
 
-lightfv = ctypes.c_float * 4
+import os.path
+import sys
 
-class ComponentItem:
-	def __init__(self, code, name, parents=None, children=None, item=None):
-		self.code = code
-		self.name = name
-		self.parents = [] if parents is None else parents
-		self.children = [] if children is None else children
-		self.item = item
+lightfv = pyglet.gl.GLfloat * 4
 
 class MainUI(QWidget):
 	def __init__(self):
 		super().__init__()
 		
-		self.render_ui = None
-		self.meshes = {} # id -> Wavefront
+		self.renderer = renderer.Renderer()
 		
 		# Init UI
 		
@@ -57,24 +45,10 @@ class MainUI(QWidget):
 		self.tree = self.tree_model.invisibleRootItem()
 		
 		# Load tree data
-		self.component_items = {}
-		def do_file(f):
-			next(f) # skip header
-			for line in f:
-				bits = line.rstrip('\n').split('\t')
-				if bits[0] not in self.component_items:
-					self.component_items[bits[0]] = ComponentItem(bits[0], bits[1])
-				if bits[2] not in self.component_items:
-					self.component_items[bits[2]] = ComponentItem(bits[2], bits[3])
-				self.component_items[bits[0]].children.append(self.component_items[bits[2]])
-				self.component_items[bits[2]].parents.append(self.component_items[bits[0]])
-		with open('data/isa_inclusion_relation_list.txt', 'r') as f:
-			do_file(f)
-		with open('data/partof_inclusion_relation_list.txt', 'r') as f:
-			do_file(f)
+		model.ComponentItem.load_component_items()
 		
 		# Build QT tree
-		def walk_tree(item, child):
+		def add_to_tree(loc, child):
 			check_item = QStandardItem()
 			check_item.setCheckable(True)
 			check_item.setCheckState(Qt.Unchecked)
@@ -83,14 +57,13 @@ class MainUI(QWidget):
 				check_item.setCheckState(Qt.Checked)
 			
 			child_item = [QStandardItem(child.code), QStandardItem(child.name), check_item]
-			item.appendRow(child_item)
-			child.item = child_item
-			for subchild in child.children:
-				walk_tree(child_item[0], subchild)
+			if len(loc) <= 1:
+				self.tree.appendRow(child_item)
+			else:
+				model.ComponentItem.item_by_loc(loc[:-1])[0].appendRow(child_item)
+			child.items[loc] = child_item
 		
-		for k, v in self.component_items.items():
-			if len(v.parents) == 0:
-				walk_tree(self.tree, v)
+		model.ComponentItem.walk_tree(add_to_tree)
 		
 		self.tree_view = QTreeView()
 		self.tree_view.setModel(self.tree_model)
@@ -108,63 +81,62 @@ class MainUI(QWidget):
 		self.search_box.setFocus(True)
 	
 	def search_box_return(self):
+		# not_before is loc
 		def do_search(not_before):
 			after_before = not_before is None # Flag representing if we are past the current selection
-			def walk_tree(item):
+			def check_tree_item(loc, item):
 				nonlocal after_before # ily python 3
 				
 				# Check for match
 				if after_before and self.search_box.text() in item.name:
-					return item
+					return loc
 				
 				# Are we passing the current selection?
-				if item == not_before:
+				if loc == not_before:
 					after_before = True
 				
-				# Descend into children
-				for child in item.children:
-					val = walk_tree(child)
-					if val is not None:
-						return val
-				return None
+				return None # Continue to children
 			
-			result = None
-			for k, v in self.component_items.items():
-				if len(v.parents) == 0:
-					result = walk_tree(v)
-					if result is not None:
-						break
+			result = model.ComponentItem.walk_tree(check_tree_item)
 			
 			if result is not None:
-				self.tree_view.setCurrentIndex(result.item[0].index())
-				self.tree_view.scrollTo(result.item[0].index())
+				result_item = model.ComponentItem.item_by_loc(result)
+				self.tree_view.setCurrentIndex(result_item[0].index())
+				self.tree_view.scrollTo(result_item[0].index())
 			else:
 				# no result, try again for another pass
 				if not_before is not None:
 					do_search(None)
 				else:
 					msgBox = QMessageBox()
-					msgBox.setText("No further search results.");
+					msgBox.setText('No search results.');
 					msgBox.exec();
 		
 		if self.tree_view.selectionModel().hasSelection():
-			do_search(self.component_items[self.tree_view.currentIndex().sibling(self.tree_view.currentIndex().row(), 0).data()])
+			# qt is hard :(
+			current_index = self.tree_view.currentIndex().sibling(self.tree_view.currentIndex().row(), 0)
+			current_item = self.tree_model.itemFromIndex(current_index) # points to item[0]
+			current_code = current_index.data() # slightly hacky
+			current_component = model.ComponentItem.component_items[current_code]
+			current_loc = next(k for k, v in current_component.items.items() if v[0] == current_item)
+			do_search(current_loc)
 		else:
 			do_search(None)
 	
 	def render_button_click(self):
+		return
+		
 		# Collate components
 		components = set()
-		def add_children(component):
+		def add_with_children(component):
+			components.add(component.code)
 			for child in component.children:
-				components.add(child.code)
-				add_children(child)
+				add_with_children(child)
 		
 		for k, v in self.component_items.items():
 			if v.item[2].checkState() == Qt.Checked:
 				print(v.code, end=' ')
-				components.add(v.code)
-				add_children(v)
+				add_with_children(v)
 		print()
 		
 		# Resolve parts
@@ -298,10 +270,3 @@ class MainUI(QWidget):
 					window.flip()
 			timer.timeout.connect(on_timer_timeout)
 			timer.start(0)
-
-app = QApplication(sys.argv)
-
-w = MainUI()
-w.show()
-
-sys.exit(app.exec_())
