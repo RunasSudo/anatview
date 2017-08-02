@@ -11,6 +11,14 @@ class ComponentItem:
 		# Internal
 		self.items = {} if items is None else items # loc -> item
 	
+	def is_child(self, parent):
+		if self == parent:
+			return True
+		for part_parent in self.parents:
+			if part_parent.is_child(parent):
+				return True
+		return False
+	
 	@staticmethod
 	def load_component_items():
 		def do_file(f):
