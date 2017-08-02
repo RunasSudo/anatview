@@ -10,6 +10,7 @@ class ComponentItem:
 		
 		# Internal
 		self.items = {} if items is None else items # loc -> item
+		self.list_item = None
 	
 	def is_child(self, parent):
 		if self == parent:
@@ -18,6 +19,20 @@ class ComponentItem:
 			if part_parent.is_child(parent):
 				return True
 		return False
+	
+	def is_type(self, organ_type):
+		if organ_type == 'bone':
+			return self.is_child(ComponentItem.component_items['FMA5018']) # bone organ
+		if organ_type == 'muscle':
+			return (self.is_child(ComponentItem.component_items['FMA5022']) # muscle organ
+			     or self.is_child(ComponentItem.component_items['FMA10474']) # zone of muscle organ
+			     or self.is_child(ComponentItem.component_items['FMA32555']) # zone of ascending trapezius
+			     or self.is_child(ComponentItem.component_items['FMA32557']) # zone of descending trapezius
+			       )
+		if organ_type == 'cartilage':
+			return (self.is_child(ComponentItem.component_items['FMA55107']) # cartilage organ
+			     or self.is_child(ComponentItem.component_items['FMA7538']) # cartilage organ component
+			       )
 	
 	@staticmethod
 	def load_component_items():

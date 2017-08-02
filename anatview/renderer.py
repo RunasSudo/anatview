@@ -52,13 +52,13 @@ class Renderer:
 				wavefront = pywavefront.Wavefront(file_name, parse_materials=False, swap_yz=True)
 				for mesh in wavefront.mesh_list:
 					for material in mesh.materials:
-						if model.ComponentItem.component_items[loc[-1]].is_child(model.ComponentItem.component_items['FMA5018']): # bone organ
+						if model.ComponentItem.component_items[loc[-1]].is_type('bone'):
 							material.set_diffuse([227/255, 218/255, 201/255, 1])
-						elif model.ComponentItem.component_items[loc[-1]].is_child(model.ComponentItem.component_items['FMA5022']): # muscle organ
+						elif model.ComponentItem.component_items[loc[-1]].is_type('muscle'):
 							material.set_diffuse([169/255, 17/255, 1/255, 1])
 				self.wavefronts[loc] = wavefront
 			else:
-				print('Cached OBJ {}'.format(file_name))
+				#print('Cached OBJ {}'.format(file_name))
 				wavefront = self.wavefronts[loc]
 			self.bounds_min = [wavefront.bounds_min[i] if self.bounds_min[i] is False else min(self.bounds_min[i], wavefront.bounds_min[i]) for i in range(3)]
 			self.bounds_max = [wavefront.bounds_max[i] if self.bounds_max[i] is False else max(self.bounds_max[i], wavefront.bounds_max[i]) for i in range(3)]

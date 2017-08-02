@@ -31,10 +31,11 @@ class MainUI(QWidget):
 		self.grid.addWidget(QLabel('Search:'), 0, 0)
 		self.grid.addWidget(self.search_box, 0, 1, 1, 15)
 		
-		self.list_tab = ListTab(self)
-		
 		self.tab_widget = QTabWidget()
-		self.tab_widget.addTab(self.list_tab, 'List')
+		self.tree_tab = TreeTab(self)
+		self.tab_widget.addTab(self.tree_tab, 'FMA Tree')
+		self.list_tab = ListTab(self)
+		self.tab_widget.addTab(self.list_tab, 'Selection List')
 		
 		self.grid.addWidget(self.tab_widget, 1, 0, 7, 16)
 		
@@ -46,12 +47,18 @@ class MainUI(QWidget):
 		self.search_box.setFocus(True)
 	
 	def search_box_return(self):
-		self.list_tab.search_box_return()
+		if self.tab_widget.currentIndex() == 0:
+			self.tree_tab.search_box_return()
+		else:
+			self.list_tab.search_box_return()
 	
 	def render_button_click(self):
-		self.list_tab.render_button_click()
+		if self.tab_widget.currentIndex() == 0:
+			self.tree_tab.render_button_click()
+		else:
+			self.list_tab.render_button_click()
 
-class ListTab(QWidget):
+class TreeTab(QWidget):
 	def __init__(self, main_ui):
 		super().__init__()
 		
@@ -141,6 +148,7 @@ class ListTab(QWidget):
 	
 	def render_button_click(self):
 		# Collate components
+		locs_base = []
 		locs = set()
 		def add_with_children(loc, component):
 			locs.add(loc)
@@ -151,8 +159,64 @@ class ListTab(QWidget):
 			for loc, item in v.items.items():
 				if item[2].checkState() == Qt.Checked:
 					print(v.code, end=' ')
+					locs_base.append((loc, v))
 					add_with_children(loc, v)
 		print()
+		
+		self.main_ui.renderer.set_locs(locs)
+		self.main_ui.renderer.render()
+		
+		# Update list
+		self.main_ui.list_tab.tree_model.removeRows(0, self.main_ui.list_tab.tree_model.rowCount())
+		for loc, child in locs_base:
+			check_item = QStandardItem()
+			check_item.setCheckable(True)
+			check_item.setCheckState(Qt.Checked)
+			
+			child_item = [QStandardItem(child.code), QStandardItem(child.name), check_item]
+			self.main_ui.list_tab.tree.appendRow(child_item)
+			child.list_item = child_item
+
+class ListTab(QWidget):
+	def __init__(self, main_ui):
+		super().__init__()
+		
+		self.main_ui = main_ui
+		
+		self.grid = QGridLayout()
+		self.setLayout(self.grid)
+		
+		# TODO: Standardize
+		self.tree_model = QStandardItemModel()
+		self.tree_model.setHorizontalHeaderItem(0, QStandardItem('ID'))
+		self.tree_model.setHorizontalHeaderItem(1, QStandardItem('Name'))
+		self.tree_model.setHorizontalHeaderItem(2, QStandardItem('?'))
+		self.tree = self.tree_model.invisibleRootItem()
+		
+		self.tree_view = QTreeView()
+		self.tree_view.setModel(self.tree_model)
+		self.tree_view.header().resizeSection(0, 400)
+		self.tree_view.header().setSectionResizeMode(1, QHeaderView.Stretch)
+		self.tree_view.header().resizeSection(2, 32)
+		self.tree_view.header().setStretchLastSection(False)
+		self.grid.addWidget(self.tree_view, 1, 0, 7, 16)
+	
+	def search_box_return(self):
+		... # TODO
+	
+	def render_button_click(self):
+		# Collate components
+		locs = set()
+		def add_with_children(loc, component):
+			locs.add(loc)
+			for child in component.children:
+				add_with_children(loc + (child.code,), child)
+		
+		for k, v in model.ComponentItem.component_items.items():
+			if v.list_item is not None and v.list_item[2].checkState() == Qt.Checked:
+				for loc, item in v.items.items():
+					if item[2].checkState() == Qt.Checked:
+						add_with_children(loc, v)
 		
 		self.main_ui.renderer.set_locs(locs)
 		self.main_ui.renderer.render()
