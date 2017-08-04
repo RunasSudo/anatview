@@ -5,9 +5,9 @@ FOV = 30
 from . import model
 from . import renderer
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
-from PyQt5.QtWidgets import QApplication, QGridLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QTabWidget, QTreeView, QWidget
+from PyQt5.QtWidgets import QApplication, QGridLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QProgressDialog, QPushButton, QTabWidget, QTreeView, QWidget
 
 import sys
 
@@ -163,9 +163,6 @@ class TreeTab(QWidget):
 					add_with_children(loc, v)
 		print()
 		
-		self.main_ui.renderer.set_locs(locs)
-		self.main_ui.renderer.render()
-		
 		# Update list
 		self.main_ui.list_tab.tree_model.removeRows(0, self.main_ui.list_tab.tree_model.rowCount())
 		for loc, child in locs_base:
@@ -176,6 +173,12 @@ class TreeTab(QWidget):
 			child_item = [QStandardItem(child.code), QStandardItem(child.name), check_item]
 			self.main_ui.list_tab.tree.appendRow(child_item)
 			child.list_item = child_item
+		
+		to_load = self.main_ui.renderer.set_locs(locs)
+		
+		# Load models and wait
+		self.progress_worker = RenderWaitWavefrontsWorker(self.main_ui.renderer, to_load)
+		self.progress_worker.start()
 
 class ListTab(QWidget):
 	def __init__(self, main_ui):
@@ -218,5 +221,27 @@ class ListTab(QWidget):
 					if item[2].checkState() == Qt.Checked:
 						add_with_children(loc, v)
 		
-		self.main_ui.renderer.set_locs(locs)
-		self.main_ui.renderer.render()
+		to_load = self.main_ui.renderer.set_locs(locs)
+		
+		# Load models and wait
+		self.progress_worker = RenderWaitWavefrontsWorker(self.main_ui.renderer, to_load)
+		self.progress_worker.start()
+
+class RenderWaitWavefrontsWorker(QThread):
+	progress_signal = pyqtSignal(int)
+	ready_signal = pyqtSignal()
+	
+	def __init__(self, renderer, to_load):
+		super().__init__()
+		self.renderer = renderer
+		
+		self.progress_dialog = QProgressDialog('Loading models', None, 0, to_load)
+		self.progress_dialog.setMinimumDuration(0)
+		
+		self.progress_signal.connect(self.progress_dialog.setValue)
+		self.ready_signal.connect(self.renderer.render)
+	
+	def run(self):
+		self.progress_signal.emit(0) # setValue(0)
+		self.renderer.load_objs(self.progress_signal.emit)
+		self.ready_signal.emit()

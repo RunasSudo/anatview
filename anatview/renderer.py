@@ -42,10 +42,19 @@ class Renderer:
 			do_file(f, 'FMA20394', 'partof')
 		# TODO: remove dependence on magic numbers
 		
+		# Count number of OBJs to load
+		to_load = 0
+		for loc, part, file_name in self.parts_to_render:
+			if (loc + (part,)) not in self.wavefronts:
+				to_load += 1
+		return to_load
+	
+	def load_objs(self, callback):
 		# Build OBJ
 		print('Processing OBJs')
 		self.bounds_min = [False, False, False]
 		self.bounds_max = [False, False, False]
+		num_loaded = 0 # cache misses only
 		for loc, part, file_name in self.parts_to_render:
 			if (loc + (part,)) not in self.wavefronts:
 				print('Parsing OBJ {}'.format(file_name))
@@ -57,6 +66,8 @@ class Renderer:
 						elif model.ComponentItem.component_items[loc[-1]].is_type('muscle'):
 							material.set_diffuse([169/255, 17/255, 1/255, 1])
 				self.wavefronts[loc + (part,)] = wavefront
+				num_loaded += 1
+				callback(num_loaded)
 			else:
 				#print('Cached OBJ {}'.format(file_name))
 				wavefront = self.wavefronts[loc]
