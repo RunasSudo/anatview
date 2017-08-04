@@ -47,7 +47,7 @@ class Renderer:
 		self.bounds_min = [False, False, False]
 		self.bounds_max = [False, False, False]
 		for loc, part, file_name in self.parts_to_render:
-			if loc not in self.wavefronts:
+			if (loc + (part,)) not in self.wavefronts:
 				print('Parsing OBJ {}'.format(file_name))
 				wavefront = pywavefront.Wavefront(file_name, parse_materials=False, swap_yz=True)
 				for mesh in wavefront.mesh_list:
@@ -56,7 +56,7 @@ class Renderer:
 							material.set_diffuse([227/255, 218/255, 201/255, 1])
 						elif model.ComponentItem.component_items[loc[-1]].is_type('muscle'):
 							material.set_diffuse([169/255, 17/255, 1/255, 1])
-				self.wavefronts[loc] = wavefront
+				self.wavefronts[loc + (part,)] = wavefront
 			else:
 				#print('Cached OBJ {}'.format(file_name))
 				wavefront = self.wavefronts[loc]
@@ -112,8 +112,8 @@ class Renderer:
 				glScalef(scale, scale, scale)
 				glTranslated(-self.bounds_mid[0], -self.bounds_mid[1], -self.bounds_mid[2])
 				
-				for loc, _, _ in self.parts_to_render:
-					self.wavefronts[loc].draw()
+				for loc, part, _ in self.parts_to_render:
+					self.wavefronts[loc + (part,)].draw()
 			@self.render_ui.event
 			def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
 				nonlocal rotation_x
