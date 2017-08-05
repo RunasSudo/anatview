@@ -22,6 +22,44 @@ class MainWindow(QMainWindow):
 		# Center window
 		self.setGeometry(QStyle.alignedRect(Qt.LeftToRight, Qt.AlignCenter, QSize(WIDTH, HEIGHT), QApplication.instance().desktop().availableGeometry()))
 		self.setWindowTitle('Anatomy')
+		
+		# Menu bars
+		menu_file = self.menuBar().addMenu('&File')
+		action_save = QAction('&Save', self)
+		action_save.triggered.connect(self.on_menu_save)
+		menu_file.addAction(action_save)
+		action_load = QAction('&Load', self)
+		action_load.triggered.connect(self.on_menu_load)
+		menu_file.addAction(action_load)
+	
+	def load_from_file(self, filename):
+		with open(filename, 'r') as f:
+			result = yaml.load(f)
+		
+		# Clear selections
+		self.main_ui.list_tab.tree_model.removeRows(0, self.main_ui.list_tab.tree_model.rowCount())
+		for code, component in model.ComponentItem.component_items.items():
+			for loc, item in component.items.items():
+				item[2].setCheckState(Qt.Unchecked)
+		
+		# Parse selections
+		for code, data in result.items():
+			if code not in model.ComponentItem.component_items:
+				print('Warning: Unknown item {}. No substitute available'.format(code))
+			else:
+				component = model.ComponentItem.component_items[code]
+				for loc, checked in data['tree'].items():
+					if loc not in component.items:
+						substitute_loc = next(iter(component.items))
+						print('Warning: Unknown item {}. Substituting'.format('>'.join(loc), '>'.join(substitute_loc)))
+						loc = substitute_loc
+					component.items[loc][2].setCheckState(Qt.Checked if checked else Qt.Unchecked)
+				self.main_ui.list_tab.tree.appendRow(component.make_list_item(data['list']))
+	
+	def on_menu_load(self):
+		filenames = QFileDialog.getOpenFileName(self, 'Open')
+		if filenames and filenames[0]:
+			self.load_from_file(filenames[0])
 	
 	def on_menu_save(self):
 		filenames = QFileDialog.getSaveFileName(self, 'Save')
@@ -192,14 +230,7 @@ class TreeTab(QWidget):
 		# Update list
 		self.main_ui.list_tab.tree_model.removeRows(0, self.main_ui.list_tab.tree_model.rowCount())
 		for loc, child in locs_base:
-			check_item = QStandardItem()
-			check_item.setCheckable(True)
-			check_item.setEnabled(child.can_render)
-			check_item.setCheckState(Qt.Checked)
-			
-			child_item = [QStandardItem(child.code), QStandardItem(child.name), check_item]
-			self.main_ui.list_tab.tree.appendRow(child_item)
-			child.list_item = child_item
+			self.main_ui.list_tab.tree.appendRow(child.make_list_item(True))
 		
 		to_load = self.main_ui.renderer.set_locs(locs)
 		

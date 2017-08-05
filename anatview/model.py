@@ -1,5 +1,8 @@
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QStandardItem
+
+import yaml
 import json
-import sys
 
 class ComponentItem:
 	component_items = {}
@@ -38,6 +41,15 @@ class ComponentItem:
 			return (self.is_child(ComponentItem.component_items['FMA55107']) # cartilage organ
 			     or self.is_child(ComponentItem.component_items['FMA7538']) # cartilage organ component
 			       )
+	
+	def make_list_item(self, checked):
+		check_item = QStandardItem()
+		check_item.setCheckable(True)
+		check_item.setEnabled(self.can_render)
+		check_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
+		
+		self.list_item = [QStandardItem(self.code), QStandardItem(self.name), check_item]
+		return self.list_item
 	
 	@staticmethod
 	def load_component_items():
