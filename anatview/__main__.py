@@ -8,7 +8,7 @@ import sys
 
 app = QApplication(sys.argv)
 
-w = qtui.MainUI()
+w = qtui.MainWindow()
 w.show()
 
 sys.exit(app.exec_())

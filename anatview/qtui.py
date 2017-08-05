@@ -5,11 +5,22 @@ FOV = 30
 from . import model
 from . import renderer
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
-from PyQt5.QtWidgets import QApplication, QGridLayout, QHeaderView, QLabel, QLineEdit, QMessageBox, QProgressDialog, QPushButton, QTabWidget, QTreeView, QWidget
+from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QGridLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressDialog, QPushButton, QStyle, QTabWidget, QTreeView, QWidget
 
 import sys
+
+class MainWindow(QMainWindow):
+	def __init__(self):
+		super().__init__()
+		
+		self.main_ui = MainUI()
+		self.setCentralWidget(self.main_ui)
+		
+		# Center window
+		self.setGeometry(QStyle.alignedRect(Qt.LeftToRight, Qt.AlignCenter, QSize(WIDTH, HEIGHT), QApplication.instance().desktop().availableGeometry()))
+		self.setWindowTitle('Anatomy')
 
 class MainUI(QWidget):
 	def __init__(self):
@@ -18,9 +29,6 @@ class MainUI(QWidget):
 		self.renderer = renderer.Renderer(self)
 		
 		# Init UI
-		
-		self.setGeometry(300, 300, WIDTH, HEIGHT)
-		self.setWindowTitle('Anatomy')
 		
 		self.grid = QGridLayout()
 		self.setLayout(self.grid)
