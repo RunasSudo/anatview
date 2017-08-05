@@ -21,8 +21,10 @@ class Renderer:
 		
 		self.bounds_min = [False, False, False]
 		self.bounds_max = [False, False, False]
+		self.bounds_mid = None
 		
 		self.render_ui = None
+		self.render_timer = QTimer(self.main_ui)
 	
 	def set_locs(self, locs):
 		components = {x[-1]: x for x in locs} # code -> loc
@@ -73,11 +75,10 @@ class Renderer:
 				wavefront = self.wavefronts[loc + (part,)]
 			self.bounds_min = [wavefront.bounds_min[i] if self.bounds_min[i] is False else min(self.bounds_min[i], wavefront.bounds_min[i]) for i in range(3)]
 			self.bounds_max = [wavefront.bounds_max[i] if self.bounds_max[i] is False else max(self.bounds_max[i], wavefront.bounds_max[i]) for i in range(3)]
+			self.bounds_mid = [(self.bounds_min[x] + self.bounds_max[x]) / 2 for x in range(3)]
 	
 	def render(self):
 		print('Rendering OBJs')
-		
-		self.bounds_mid = [(self.bounds_min[x] + self.bounds_max[x]) / 2 for x in range(3)]
 		
 		if self.render_ui is None:
 			self.render_ui = pyglet.window.Window(width=WIDTH, height=HEIGHT)
@@ -102,6 +103,9 @@ class Renderer:
 				glEnable(num)
 			@self.render_ui.event
 			def on_draw():
+				if not self.bounds_min:
+					return
+				
 				self.render_ui.clear()
 				glLoadIdentity()
 				
@@ -144,7 +148,6 @@ class Renderer:
 				elif symbol == pyglet.window.key.S:
 					translation_y += 0.3
 			
-			timer = QTimer(self.main_ui)
 			def on_timer_timeout():
 				# Supplant event loop
 				pyglet.clock.tick()
@@ -153,5 +156,8 @@ class Renderer:
 					window.dispatch_events()
 					window.dispatch_event('on_draw')
 					window.flip()
-			timer.timeout.connect(on_timer_timeout)
-			timer.start(0)
+			self.render_timer.timeout.connect(on_timer_timeout)
+		self.render_timer.start(0)
+		#else:
+		#	#self.render_timer.setInterval(0)
+		#	

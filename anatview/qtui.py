@@ -237,13 +237,16 @@ class RenderWaitWavefrontsWorker(QThread):
 		super().__init__()
 		self.renderer = renderer
 		
-		self.progress_dialog = QProgressDialog('Loading models', None, 0, to_load)
+		self.progress_dialog = QProgressDialog('Loading models', None, 0, to_load, flags=Qt.WindowStaysOnTopHint)
 		self.progress_dialog.setMinimumDuration(0)
 		
 		self.progress_signal.connect(self.progress_dialog.setValue)
 		self.ready_signal.connect(self.renderer.render)
+		
+		self.renderer.render_timer.stop()
 	
 	def run(self):
 		self.progress_signal.emit(0) # setValue(0)
+		#self.ready_signal.emit()
 		self.renderer.load_objs(self.progress_signal.emit)
 		self.ready_signal.emit()
