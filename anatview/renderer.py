@@ -31,25 +31,25 @@ class Renderer:
 		
 		# Resolve parts
 		self.parts_to_render = set()
-		def do_file(f, parent, prefix):
+		def do_file(f, prefix):
 			next(f) # skip header
 			for line in f:
 				bits = line.rstrip('\n').split('\t')
 				if bits[0] in components:
-					if parent in components[bits[0]]:
+					#if parent in components[bits[0]]:
 						self.parts_to_render.add((components[bits[0]], bits[2], 'data/bp3d_20130619/' + prefix + '_BP3D_4.0_obj_99/' + bits[2] + '.obj')) # TODO: stop passing these things around like crazy
 		with open('data/bp3d_20130619/isa_element_parts.txt', 'r') as f:
-			do_file(f, 'FMA62955', 'isa')
+			do_file(f, 'isa')
 		with open('data/bp3d_20130619/partof_element_parts.txt', 'r') as f:
-			do_file(f, 'FMA20394', 'partof')
+			do_file(f, 'partof')
 		# TODO: remove dependence on magic numbers
 		
 		# Count number of OBJs to load
-		to_load = 0
+		to_load = set()
 		for loc, part, file_name in self.parts_to_render:
 			if (loc + (part,)) not in self.wavefronts:
-				to_load += 1
-		return to_load
+				to_load.add(loc + (part,))
+		return len(to_load)
 	
 	def load_objs(self, callback):
 		# Build OBJ
@@ -78,7 +78,7 @@ class Renderer:
 			self.bounds_mid = [(self.bounds_min[x] + self.bounds_max[x]) / 2 for x in range(3)]
 	
 	def render(self):
-		print('Rendering OBJs')
+		print('Rendering {} OBJs'.format(len(self.parts_to_render)))
 		
 		if self.render_ui is None:
 			self.render_ui = pyglet.window.Window(width=WIDTH, height=HEIGHT)
@@ -103,7 +103,7 @@ class Renderer:
 				glEnable(num)
 			@self.render_ui.event
 			def on_draw():
-				if not self.bounds_min:
+				if not self.bounds_mid:
 					return
 				
 				self.render_ui.clear()
