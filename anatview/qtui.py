@@ -80,9 +80,10 @@ class TreeTab(QWidget):
 		def add_to_tree(loc, child):
 			check_item = QStandardItem()
 			check_item.setCheckable(True)
+			check_item.setEnabled(child.can_render)
 			check_item.setCheckState(Qt.Unchecked)
 			
-			if child.code in sys.argv[1:]:
+			if child.can_render and child.code in sys.argv[1:]:
 				check_item.setCheckState(Qt.Checked)
 				sys.argv.remove(child.code) # one only
 			
@@ -111,7 +112,7 @@ class TreeTab(QWidget):
 				nonlocal after_before # ily python 3
 				
 				# Check for match
-				if after_before and self.main_ui.search_box.text() in item.name:
+				if after_before and item.can_render and item.name and self.main_ui.search_box.text() in item.name:
 					return loc
 				
 				# Are we passing the current selection?
@@ -168,6 +169,7 @@ class TreeTab(QWidget):
 		for loc, child in locs_base:
 			check_item = QStandardItem()
 			check_item.setCheckable(True)
+			check_item.setEnabled(child.can_render)
 			check_item.setCheckState(Qt.Checked)
 			
 			child_item = [QStandardItem(child.code), QStandardItem(child.name), check_item]

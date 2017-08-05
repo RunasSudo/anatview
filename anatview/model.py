@@ -1,3 +1,6 @@
+import json
+import sys
+
 class ComponentItem:
 	component_items = {}
 	
@@ -9,6 +12,7 @@ class ComponentItem:
 		self.children = [] if children is None else children
 		
 		# Internal
+		self.can_render = False
 		self.items = {} if items is None else items # loc -> item
 		self.list_item = None
 	
@@ -28,6 +32,7 @@ class ComponentItem:
 			     or self.is_child(ComponentItem.component_items['FMA10474']) # zone of muscle organ
 			     or self.is_child(ComponentItem.component_items['FMA32555']) # zone of ascending trapezius
 			     or self.is_child(ComponentItem.component_items['FMA32557']) # zone of descending trapezius
+			     or self.is_child(ComponentItem.component_items['FMA79979']) # sternocostal part of right pectoralis major (???)
 			       )
 		if organ_type == 'cartilage':
 			return (self.is_child(ComponentItem.component_items['FMA55107']) # cartilage organ
@@ -36,24 +41,61 @@ class ComponentItem:
 	
 	@staticmethod
 	def load_component_items():
+		# Read FMA data
+		with open('data/fma_v4.8.0.json', 'r') as f:
+			fma_data = json.load(f)
+		for code, json_component in fma_data.items():
+			ComponentItem.component_items[code] = ComponentItem(code, json_component['name'])
+		for code, json_component in fma_data.items():
+			for parent_code in json_component['parents']:
+				if parent_code in ComponentItem.component_items:
+					#if ComponentItem.component_items[parent_code].is_child(ComponentItem.component_items[code]):
+					#	# About to add a circular reference
+					#	pass
+					#else:
+						ComponentItem.component_items[code].parents.append(ComponentItem.component_items[parent_code])
+						ComponentItem.component_items[parent_code].children.append(ComponentItem.component_items[code])
+				else:
+					print('Warning: No FMA data for parent {}'.format(parent_code))
+		
+		# Sanity check
+		#def walk_item(component, seen=[]):
+		#	if component in seen:
+		#		print('!! Loop with {}'.format(component.code))
+		#		print(' > '.join([x.code for x in seen]))
+		#		sys.exit(1)
+		#	for parent in component.parents:
+		#		walk_item(parent, seen + [component])
+		#for code, component in ComponentItem.component_items.items():
+		#	walk_item(component)
+		
+		# Ascertain whether renderable
 		def do_file(f):
+			def mark_renderable(component):
+				if component.can_render:
+					return
+				component.can_render = True
+				for parent in component.parents:
+					mark_renderable(parent)
+			
 			next(f) # skip header
 			for line in f:
 				bits = line.rstrip('\n').split('\t')
-				if bits[0] not in ComponentItem.component_items:
-					ComponentItem.component_items[bits[0]] = ComponentItem(bits[0], bits[1])
-				if bits[2] not in ComponentItem.component_items:
-					ComponentItem.component_items[bits[2]] = ComponentItem(bits[2], bits[3])
-				ComponentItem.component_items[bits[0]].children.append(ComponentItem.component_items[bits[2]])
-				ComponentItem.component_items[bits[2]].parents.append(ComponentItem.component_items[bits[0]])
-		with open('data/isa_inclusion_relation_list.txt', 'r') as f:
+				if bits[0] in ComponentItem.component_items:
+					mark_renderable(ComponentItem.component_items[bits[0]])
+				else:
+					print('Warning: No FMA data for wavefront {}'.format(bits[0]))
+		with open('data/bp3d_20130619/isa_element_parts.txt', 'r') as f:
 			do_file(f)
-		with open('data/partof_inclusion_relation_list.txt', 'r') as f:
+		with open('data/bp3d_20130619/partof_element_parts.txt', 'r') as f:
 			do_file(f)
 	
 	@staticmethod
 	def walk_tree(callback):
 		def do_walk_tree(parent_loc, child):
+			if child.code in parent_loc:
+				# Prevent infinite loops from circular references
+				return None
 			res = callback(parent_loc + (child.code,), child)
 			if res is not None:
 				return res

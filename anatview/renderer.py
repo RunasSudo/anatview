@@ -35,10 +35,10 @@ class Renderer:
 				bits = line.rstrip('\n').split('\t')
 				if bits[0] in components:
 					if parent in components[bits[0]]:
-						self.parts_to_render.add((components[bits[0]], bits[2], 'data/' + prefix + '_BP3D_4.0_obj_99/' + bits[2] + '.obj')) # TODO: stop passing these things around like crazy
-		with open('data/isa_element_parts.txt', 'r') as f:
+						self.parts_to_render.add((components[bits[0]], bits[2], 'data/bp3d_20130619/' + prefix + '_BP3D_4.0_obj_99/' + bits[2] + '.obj')) # TODO: stop passing these things around like crazy
+		with open('data/bp3d_20130619/isa_element_parts.txt', 'r') as f:
 			do_file(f, 'FMA62955', 'isa')
-		with open('data/partof_element_parts.txt', 'r') as f:
+		with open('data/bp3d_20130619/partof_element_parts.txt', 'r') as f:
 			do_file(f, 'FMA20394', 'partof')
 		# TODO: remove dependence on magic numbers
 		
@@ -70,7 +70,7 @@ class Renderer:
 				callback(num_loaded)
 			else:
 				#print('Cached OBJ {}'.format(file_name))
-				wavefront = self.wavefronts[loc]
+				wavefront = self.wavefronts[loc + (part,)]
 			self.bounds_min = [wavefront.bounds_min[i] if self.bounds_min[i] is False else min(self.bounds_min[i], wavefront.bounds_min[i]) for i in range(3)]
 			self.bounds_max = [wavefront.bounds_max[i] if self.bounds_max[i] is False else max(self.bounds_max[i], wavefront.bounds_max[i]) for i in range(3)]
 	
@@ -124,7 +124,8 @@ class Renderer:
 				glTranslated(-self.bounds_mid[0], -self.bounds_mid[1], -self.bounds_mid[2])
 				
 				for loc, part, _ in self.parts_to_render:
-					self.wavefronts[loc + (part,)].draw()
+					if loc + (part,) in self.wavefronts:
+						self.wavefronts[loc + (part,)].draw()
 			@self.render_ui.event
 			def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
 				nonlocal rotation_x
