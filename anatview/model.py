@@ -29,7 +29,9 @@ class ComponentItem:
 	
 	def is_type(self, organ_type):
 		if organ_type == 'bone':
-			return self.is_child(ComponentItem.component_items['FMA5018']) # bone organ
+			return (self.is_child(ComponentItem.component_items['FMA5018']) # bone organ
+			     or self.is_child(ComponentItem.component_items['FMA71324']) # set of bone organs
+			       )
 		if organ_type == 'muscle':
 			return (self.is_child(ComponentItem.component_items['FMA5022']) # muscle organ
 			     or self.is_child(ComponentItem.component_items['FMA10474']) # zone of muscle organ

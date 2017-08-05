@@ -1,6 +1,3 @@
-WIDTH = 1200
-HEIGHT = 675
-FOV = 30
 
 from . import model
 from . import renderer
@@ -20,7 +17,7 @@ class MainWindow(QMainWindow):
 		self.setCentralWidget(self.main_ui)
 		
 		# Center window
-		self.setGeometry(QStyle.alignedRect(Qt.LeftToRight, Qt.AlignCenter, QSize(WIDTH, HEIGHT), QApplication.instance().desktop().availableGeometry()))
+		self.setGeometry(QStyle.alignedRect(Qt.LeftToRight, Qt.AlignCenter, QSize(renderer.WIDTH, renderer.HEIGHT), QApplication.instance().desktop().availableGeometry()))
 		self.setWindowTitle('Anatomy')
 		
 		# Menu bars
@@ -205,8 +202,13 @@ class TreeTab(QWidget):
 			current_item = self.tree_model.itemFromIndex(current_index) # points to item[0]
 			current_code = current_index.data() # slightly hacky
 			current_component = model.ComponentItem.component_items[current_code]
-			current_loc = next(k for k, v in current_component.items.items() if v[0] == current_item)
-			do_search(current_loc)
+			if self.main_ui.search_box.text() in current_component.name:
+				# resume search only if the current item matches
+				current_loc = next(k for k, v in current_component.items.items() if v[0] == current_item)
+				do_search(current_loc)
+			else:
+				# otherwise, start from the top
+				do_search(None)
 		else:
 			do_search(None)
 	
