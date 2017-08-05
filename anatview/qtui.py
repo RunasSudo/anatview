@@ -9,6 +9,7 @@ from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QGridLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressDialog, QPushButton, QStyle, QTabWidget, QTreeView, QWidget
 
+import yaml
 import sys
 
 class MainWindow(QMainWindow):
@@ -21,6 +22,22 @@ class MainWindow(QMainWindow):
 		# Center window
 		self.setGeometry(QStyle.alignedRect(Qt.LeftToRight, Qt.AlignCenter, QSize(WIDTH, HEIGHT), QApplication.instance().desktop().availableGeometry()))
 		self.setWindowTitle('Anatomy')
+	
+	def on_menu_save(self):
+		filenames = QFileDialog.getSaveFileName(self, 'Save')
+		if filenames and filenames[0]:
+			result = {}
+			for code, component in model.ComponentItem.component_items.items():
+				data = {
+					'tree': {loc: True for loc, item in component.items.items() if item[2].checkState() == Qt.Checked}
+				}
+				if component.list_item and component.list_item[2].checkState() == Qt.Checked:
+					data['list'] = True
+				
+				if any(v == True for k, v in data['tree'].items()):
+					result[code] = data
+			with open(filenames[0], 'w') as f:
+				yaml.dump(result, f)
 
 class MainUI(QWidget):
 	def __init__(self):
