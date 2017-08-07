@@ -22,8 +22,9 @@ from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import QAction, QApplication, QFileDialog, QGridLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressDialog, QPushButton, QStyle, QTabWidget, QTreeView, QWidget
 
-import yaml
+import re
 import sys
+import yaml
 
 class MainWindow(QMainWindow):
 	def __init__(self):
@@ -44,6 +45,10 @@ class MainWindow(QMainWindow):
 		action_load = QAction('&Load', self)
 		action_load.triggered.connect(self.on_menu_load)
 		menu_file.addAction(action_load)
+		
+		# Process arguments
+		if len(sys.argv) > 1:
+			self.load_from_file(sys.argv[1])
 	
 	def load_from_file(self, filename):
 		with open(filename, 'r') as f:
@@ -54,6 +59,7 @@ class MainWindow(QMainWindow):
 		for code, component in model.ComponentItem.component_items.items():
 			for loc, item in component.items.items():
 				item[2].setCheckState(Qt.Unchecked)
+			component.list_item = None
 		
 		# Parse selections
 		for code, data in result.items():
@@ -67,7 +73,7 @@ class MainWindow(QMainWindow):
 						print('Warning: Unknown item {}. Substituting'.format('>'.join(loc), '>'.join(substitute_loc)))
 						loc = substitute_loc
 					component.items[loc][2].setCheckState(Qt.Checked if checked else Qt.Unchecked)
-				self.main_ui.list_tab.tree.appendRow(component.make_list_item(data['list']))
+				self.main_ui.list_tab.tree.appendRow(component.make_list_item(data['list'] if 'list' in data else True))
 	
 	def on_menu_load(self):
 		filenames = QFileDialog.getOpenFileName(self, 'Open')
@@ -82,8 +88,8 @@ class MainWindow(QMainWindow):
 				data = {
 					'tree': {loc: True for loc, item in component.items.items() if item[2].checkState() == Qt.Checked}
 				}
-				if component.list_item and component.list_item[2].checkState() == Qt.Checked:
-					data['list'] = True
+				if component.list_item:
+					data['list'] = component.list_item[2].checkState() == Qt.Checked
 				
 				if any(v == True for k, v in data['tree'].items()):
 					result[code] = data
@@ -156,12 +162,8 @@ class TreeTab(QWidget):
 		def add_to_tree(loc, child):
 			check_item = QStandardItem()
 			check_item.setCheckable(True)
-			check_item.setEnabled(child.can_render)
+			check_item.setEnabled(child.parts is not None)
 			check_item.setCheckState(Qt.Unchecked)
-			
-			if child.can_render and child.code in sys.argv[1:]:
-				check_item.setCheckState(Qt.Checked)
-				sys.argv.remove(child.code) # one only
 			
 			child_item = [QStandardItem(child.code), QStandardItem(child.name), check_item]
 			if len(loc) <= 1:
@@ -188,7 +190,7 @@ class TreeTab(QWidget):
 				nonlocal after_before # ily python 3
 				
 				# Check for match
-				if after_before and item.can_render and item.name and self.main_ui.search_box.text() in item.name:
+				if after_before and item.parts is not None and item.name and re.search(self.main_ui.search_box.text(), item.name):
 					return loc
 				
 				# Are we passing the current selection?
@@ -218,7 +220,7 @@ class TreeTab(QWidget):
 			current_item = self.tree_model.itemFromIndex(current_index) # points to item[0]
 			current_code = current_index.data() # slightly hacky
 			current_component = model.ComponentItem.component_items[current_code]
-			if self.main_ui.search_box.text() in current_component.name:
+			if re.search(self.main_ui.search_box.text(), current_component.name):
 				# resume search only if the current item matches
 				current_loc = next(k for k, v in current_component.items.items() if v[0] == current_item)
 				do_search(current_loc)
@@ -233,22 +235,28 @@ class TreeTab(QWidget):
 		locs_base = []
 		locs = set()
 		def add_with_children(loc, component):
-			locs.add(loc)
-			for child in component.children:
-				add_with_children(loc + (child.code,), child)
+			if component.parts is not None:
+				locs.add(loc)
+				for child in component.children:
+					add_with_children(loc + (child.code,), child)
 		
 		for k, v in model.ComponentItem.component_items.items():
 			for loc, item in v.items.items():
 				if item[2].checkState() == Qt.Checked:
 					print(v.code, end=' ')
-					locs_base.append((loc, v))
+					locs_base.append(v)
 					add_with_children(loc, v)
 		print()
 		
 		# Update list
-		self.main_ui.list_tab.tree_model.removeRows(0, self.main_ui.list_tab.tree_model.rowCount())
-		for loc, child in locs_base:
-			self.main_ui.list_tab.tree.appendRow(child.make_list_item(True))
+		for code, component in model.ComponentItem.component_items.items():
+			if component in locs_base:
+				if component.list_item is None:
+					self.main_ui.list_tab.tree.appendRow(component.make_list_item(True))
+			else:
+				if component.list_item is not None:
+					self.main_ui.list_tab.tree_model.removeRows(component.list_item[0].row(), 1)
+					component.list_item = None
 		
 		to_load = self.main_ui.renderer.set_locs(locs)
 		
@@ -287,9 +295,10 @@ class ListTab(QWidget):
 		# Collate components
 		locs = set()
 		def add_with_children(loc, component):
-			locs.add(loc)
-			for child in component.children:
-				add_with_children(loc + (child.code,), child)
+			if component.parts is not None:
+				locs.add(loc)
+				for child in component.children:
+					add_with_children(loc + (child.code,), child)
 		
 		for k, v in model.ComponentItem.component_items.items():
 			if v.list_item is not None and v.list_item[2].checkState() == Qt.Checked:
@@ -315,7 +324,10 @@ class RenderWaitWavefrontsWorker(QThread):
 		self.progress_dialog.setMinimumDuration(0)
 		
 		self.progress_signal.connect(self.progress_dialog.setValue)
-		self.ready_signal.connect(self.renderer.render)
+		def on_ready():
+			self.renderer.render()
+			self.progress_dialog.reset()
+		self.ready_signal.connect(on_ready)
 		
 		self.renderer.render_timer.stop()
 	

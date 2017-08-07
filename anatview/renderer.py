@@ -48,18 +48,9 @@ class Renderer:
 		
 		# Resolve parts
 		self.parts_to_render = set()
-		def do_file(f, prefix):
-			next(f) # skip header
-			for line in f:
-				bits = line.rstrip('\n').split('\t')
-				if bits[0] in components:
-					#if parent in components[bits[0]]:
-						self.parts_to_render.add((components[bits[0]], bits[2], 'data/bp3d_20130619/' + prefix + '_BP3D_4.0_obj_99/' + bits[2] + '.obj')) # TODO: stop passing these things around like crazy
-		with open('data/bp3d_20130619/isa_element_parts.txt', 'r') as f:
-			do_file(f, 'isa')
-		with open('data/bp3d_20130619/partof_element_parts.txt', 'r') as f:
-			do_file(f, 'partof')
-		# TODO: remove dependence on magic numbers
+		for code, loc in components.items():
+			for part, filename in model.ComponentItem.component_items[code].parts:
+				self.parts_to_render.add((loc, part, filename))
 		
 		# Count number of OBJs to load
 		to_load = set()

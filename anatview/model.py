@@ -18,8 +18,8 @@
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItem
 
-import yaml
 import json
+import os
 
 class ComponentItem:
 	component_items = {}
@@ -32,7 +32,7 @@ class ComponentItem:
 		self.children = [] if children is None else children
 		
 		# Internal
-		self.can_render = False
+		self.parts = None
 		self.items = {} if items is None else items # loc -> item
 		self.list_item = None
 	
@@ -64,7 +64,7 @@ class ComponentItem:
 	def make_list_item(self, checked):
 		check_item = QStandardItem()
 		check_item.setCheckable(True)
-		check_item.setEnabled(self.can_render)
+		check_item.setEnabled(self.parts is not None)
 		check_item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
 		
 		self.list_item = [QStandardItem(self.code), QStandardItem(self.name), check_item]
@@ -89,37 +89,9 @@ class ComponentItem:
 				else:
 					print('Warning: No FMA data for parent {}'.format(parent_code))
 		
-		# Sanity check
-		#def walk_item(component, seen=[]):
-		#	if component in seen:
-		#		print('!! Loop with {}'.format(component.code))
-		#		print(' > '.join([x.code for x in seen]))
-		#		sys.exit(1)
-		#	for parent in component.parents:
-		#		walk_item(parent, seen + [component])
-		#for code, component in ComponentItem.component_items.items():
-		#	walk_item(component)
-		
 		# Ascertain whether renderable
-		def do_file(f):
-			def mark_renderable(component):
-				if component.can_render:
-					return
-				component.can_render = True
-				for parent in component.parents:
-					mark_renderable(parent)
-			
-			next(f) # skip header
-			for line in f:
-				bits = line.rstrip('\n').split('\t')
-				if bits[0] in ComponentItem.component_items:
-					mark_renderable(ComponentItem.component_items[bits[0]])
-				else:
-					print('Warning: No FMA data for wavefront {}'.format(bits[0]))
-		with open('data/bp3d_20130619/isa_element_parts.txt', 'r') as f:
-			do_file(f)
-		with open('data/bp3d_20130619/partof_element_parts.txt', 'r') as f:
-			do_file(f)
+		for loader in LOADERS:
+			loader.load()
 	
 	@staticmethod
 	def walk_tree(callback):
@@ -146,3 +118,48 @@ class ComponentItem:
 	@staticmethod
 	def item_by_loc(loc):
 		return ComponentItem.component_items[loc[-1]].items[loc]
+
+class ComponentLoader:
+	def mark_renderable(self, component):
+		if component.parts is not None:
+			return
+		component.parts = set()
+		for parent in component.parents:
+			self.mark_renderable(parent)
+
+# Loads components from a BP3D official archive
+class BP3DArchiveLoader(ComponentLoader):
+	def __init__(self, directory, tree_type):
+		self.directory = directory
+		self.tree_type = tree_type
+	
+	def load(self):
+		with open(self.directory + '/' + self.tree_type + '_element_parts.txt', 'r') as f:
+			next(f) # skip header
+			for line in f:
+				bits = line.rstrip('\n').split('\t')
+				if bits[0] in ComponentItem.component_items:
+					self.mark_renderable(ComponentItem.component_items[bits[0]])
+					ComponentItem.component_items[bits[0]].parts.add((bits[2], self.directory + '/' + self.tree_type + '_BP3D_4.0_obj_99/' + bits[2] + '.obj'))
+				else:
+					print('Warning: No FMA data for wavefront {}'.format(bits[0]))
+
+# Loads components manually downloaded from BP3D/Anatomography
+class BP3DObjLoader(ComponentLoader):
+	def __init__(self, directory):
+		self.directory = directory
+	
+	def load(self):
+		for f in os.listdir(self.directory):
+			bits = f.split('_')
+			if bits[2] in ComponentItem.component_items:
+				self.mark_renderable(ComponentItem.component_items[bits[2]])
+				ComponentItem.component_items[bits[2]].parts.add((bits[0], self.directory + '/' + f))
+			else:
+				print('Warning: No FMA data for wavefront {}'.format(bits[2]))
+
+LOADERS = [
+	BP3DArchiveLoader('data/bp3d_20130619', 'isa'),
+	BP3DArchiveLoader('data/bp3d_20130619', 'partof'),
+	BP3DObjLoader('data/bp3d_obj_20161017i4')
+]
